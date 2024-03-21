@@ -10,6 +10,9 @@ import time
 from copy import deepcopy
 
 class ChessBoard(QWidget):
+
+    mouse_position_signal = pyqtSignal(tuple)  # 定义一个自定义信号
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle('棋盘界面')
@@ -31,7 +34,6 @@ class ChessBoard(QWidget):
         board_size = 600
         rows = cols = 8
         cell_size = self.cell_size
-
         # 绘制棋盘网格
         for row in range(rows):
             for col in range(cols):
@@ -78,11 +80,10 @@ class ChessBoard(QWidget):
             row = y // self.cell_size
             col = x // self.cell_size
             print("左键点击位置：行", row, "列", col)
+            self.mouse_position_signal.emit((row, col))  # 发射自定义信号,传递鼠标点击位置
             # 更新格子状态并重绘
             # self.board_state[row][col] = 'X'  # 这里默认为黑棋，你可以根据需要修改
             # self.refresh_board(self.board_state)
-            return (row, col)
-
 
 class MainWindow(QWidget):
     def __init__(self):
@@ -101,7 +102,7 @@ class MainWindow(QWidget):
         self.start_button.clicked.connect(self.begin)
 
     def begin(self):
-        self.game_thread = GameThread()
+        self.game_thread = GameThread(self.chessboard)
         self.game_thread.update_signal.connect(self.chessboard.refresh_board)
         self.game_thread.start()
         
@@ -109,7 +110,7 @@ class MainWindow(QWidget):
 class GameThread(QThread):
     update_signal = pyqtSignal(list)
 
-    def __init__(self):
+    def __init__(self,chessboard):
         super().__init__()
         # 人类玩家黑棋初始化
         black_player = HumanPlayer("X")
@@ -117,6 +118,13 @@ class GameThread(QThread):
         white_player = AIPlayer("O")
         # 游戏初始化，第一个玩家是黑棋，第二个玩家是白棋
         self.game = Game(black_player, white_player)
+
+        self.chessboard = chessboard
+        self.mouse_position = None
+        self.chessboard.mouse_position_signal.connect(self.handle_mouse_position)  # 连接自定义信号的槽函数
+
+    def handle_mouse_position(self, position):
+        self.mouse_position = position
 
     def run(self):    
         # 在这里执行游戏循环的代码
@@ -153,12 +161,17 @@ class GameThread(QThread):
                     continue
 
             board = deepcopy(self.game.board._board)
-
             # legal_actions 不等于 0 则表示当前下棋方有合法落子位置
             try:
                 for i in range(0, 3):
                     if isinstance(self.game.current_player, HumanPlayer):
-                        action = self.chessboard.mousePressEvent()
+                        action = None
+                        while action is None:
+                            self.msleep(100)  # 避免占用太多 CPU 资源
+                            if self.mouse_position is not None:
+                                action = self.game.board.num_board(self.mouse_position)
+                                self.mouse_position = None
+                                print(action,legal_actions,sep='\n')
                     else:
                         # 获取落子位置
                         action = func_timeout(60, self.game.current_player.get_move,
@@ -239,24 +252,6 @@ class GameThread(QThread):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = MainWindow()
-    window.show()
-    
+    window.show()  
     sys.exit(app.exec_())
     
-    # 人类玩家黑棋初始化
-    black_player = RandomPlayer("X")
-
-    # AI 玩家 白棋初始化
-    white_player = AIPlayer("O")
-
-    # AI 玩家 白棋初始化
-    # white_player = HumanPlayer("O")
-
-    # 游戏初始化，第一个玩家是黑棋，第二个玩家是白棋
-    game = Game(black_player, white_player)
-
-    # 开始下棋
-    game.run()
-
-
-
