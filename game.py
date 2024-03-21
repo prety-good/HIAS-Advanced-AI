@@ -85,8 +85,7 @@ class Game(object):
         winner = None
         diff = -1
 
-        # 游戏开始
-        print('\n=====开始游戏!=====\n')
+        # 游戏开始        print('\n=====开始游戏!=====\n')
         # 棋盘初始化
         self.board.display(step_time, total_time)
         while True:
