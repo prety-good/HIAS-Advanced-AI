@@ -1,7 +1,7 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton
-from PyQt5.QtGui import QPainter, QColor
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton,QMessageBox,QLabel
+from PyQt5.QtGui import QPainter, QColor, QFont
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QCoreApplication
 from main import AIPlayer, RandomPlayer, HumanPlayer
 from func_timeout import func_timeout, FunctionTimedOut
 from game import Game
@@ -10,9 +10,7 @@ import time
 from copy import deepcopy
 
 class ChessBoard(QWidget):
-
     mouse_position_signal = pyqtSignal(tuple)  # 定义一个自定义信号
-
     def __init__(self):
         super().__init__()
         self.setWindowTitle('棋盘界面')
@@ -90,6 +88,7 @@ class MainWindow(QWidget):
         super().__init__()
         self.setWindowTitle('黑白棋对弈')
         self.setGeometry(100, 100, 900, 600)
+        self.setFixedSize(900, 600)
 
         # 创建棋盘界面
         self.chessboard = ChessBoard()
@@ -98,17 +97,83 @@ class MainWindow(QWidget):
 
         # 添加开始按钮
         self.start_button = QPushButton('开始', self)
-        self.start_button.setGeometry(700, 50, 150, 50)
+        self.start_button.setGeometry(650, 400, 150, 50)
         self.start_button.clicked.connect(self.begin)
+        # 添加退出按钮
+        self.exit_button = QPushButton('退出', self)
+        self.exit_button.setGeometry(650, 450, 150, 50)
+        self.exit_button.clicked.connect(QCoreApplication.quit)
+        # 添加显示框
+        font = QFont("Arial", 12, QFont.Bold)
+        self.total_time_X_label = QLabel(self)
+        self.total_time_X_label.setGeometry(650, 150, 160, 30)
+        self.total_time_X_label.setFont(font)
+        self.total_time_X_label.setStyleSheet("color: darkred; background-color: lightyellow;")  # 设置前景色和背景色
+
+        self.total_time_O_label = QLabel(self)
+        self.total_time_O_label.setGeometry(650, 200, 160, 30)
+        self.total_time_O_label.setFont(font)
+        self.total_time_O_label.setStyleSheet("color: darkred; background-color: lightyellow;")  # 设置前景色和背景色
+
+        self.step_time_X_label = QLabel(self)
+        self.step_time_X_label.setGeometry(650, 250, 160, 30)
+        self.step_time_X_label.setFont(font)
+        self.step_time_X_label.setStyleSheet("color: darkred; background-color: lightyellow;")  # 设置前景色和背景色
+
+        self.step_time_O_label = QLabel(self)
+        self.step_time_O_label.setGeometry(650, 300, 160, 30)
+        self.step_time_O_label.setFont(font)
+        self.step_time_O_label.setStyleSheet("color: darkred; background-color: lightyellow;")  # 设置前景色和背景色
 
     def begin(self):
         self.game_thread = GameThread(self.chessboard)
         self.game_thread.update_signal.connect(self.chessboard.refresh_board)
+        self.game_thread.time_signal.connect(self.update_time_labels)
+        self.game_thread.result_signal.connect(self.show_result_messagebox)
         self.game_thread.start()
-        
+    
+    def update_time_labels(self, time_dict):
+        print("更新时间!")
+        # 更新时间显示框的内容
+        self.total_time_X_label.setText(f"Total Time black: {time_dict['total_time_X']}s")
+        self.total_time_O_label.setText(f"Total Time white: {time_dict['total_time_O']}s")
+        self.step_time_X_label.setText( f"Step  Time black: {time_dict['step_time_X']}s")
+        self.step_time_O_label.setText( f"Step  Time white: {time_dict['step_time_O']}s")
+
+    def show_result_messagebox(self, result):
+        msg_box = QMessageBox(self)
+        msg_box.setWindowTitle("游戏结果")
+        msg_box.setText(f"游戏结果: {result}")
+        # 设置 QMessageBox 的样式表
+        msg_box.setStyleSheet("""
+            QMessageBox {
+                background-color: #F0F0F0;
+                font-family: "Arial", sans-serif;
+                font-size: 14px;
+            }
+            QMessageBox QLabel {
+                color: #333333;
+            }
+            QMessageBox QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                padding: 6px 12px;
+                border-radius: 4px;
+            }
+            QMessageBox QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        msg_box.exec_()
+        QCoreApplication.quit()
 
 class GameThread(QThread):
-    update_signal = pyqtSignal(list)
+    """
+        逻辑线程，负责游戏流程的逻辑，ai的落子。
+    """
+    update_signal = pyqtSignal(list) # 刷新棋盘信号
+    time_signal = pyqtSignal(dict) # 刷新时间信号
+    result_signal = pyqtSignal(str) # 游戏结束信号
 
     def __init__(self,chessboard):
         super().__init__()
@@ -234,6 +299,10 @@ class GameThread(QThread):
                 self.game.board.display(step_time, total_time)
                 # 刷新棋盘
                 self.update_signal.emit(self.game.board._board)
+                # 刷新分数
+                time_dict = {"total_time_X": total_time["X"], "total_time_O": total_time["O"],
+                            "step_time_X": step_time["X"], "step_time_O": step_time["O"]}
+                self.time_signal.emit(time_dict)
                 # 判断游戏是否结束
                 if self.game.game_over():
                     # 游戏结束
@@ -247,6 +316,8 @@ class GameThread(QThread):
         # 返回'black_win','white_win','draw',棋子数差
         if winner is not None and diff > -1:
             result = {0: 'black_win', 1: 'white_win', 2: 'draw'}[winner]
+
+        self.result_signal.emit(result)
 
 
 if __name__ == '__main__':
