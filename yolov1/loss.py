@@ -150,23 +150,15 @@ class YOLOv1_Loss(nn.Module):
         # 定位
         loss_coord = self.l_coord * (mseLoss(predict_grid_positive_box[:,0:2], ground_positive_boxes[:,0:2]) + mseLoss(torch.sqrt(predict_grid_positive_box[:,2:4] + 1e-8), torch.sqrt(ground_positive_boxes[:,2:4] + 1e-8))) / batch_size
         loss = loss + loss_coord
-        #coord = self.l_coord * torch.pow(predict_grid_positive_box[:,0:2] - ground_positive_boxes[:,0:2], 2).sum() / batch_size \
-        #        + self.l_coord * torch.pow(torch.sqrt(predict_grid_positive_box[:,2:4]) - torch.sqrt(ground_positive_boxes[:, 2:4]), 2).sum() / batch_size
-        #loss = loss + coord
-        #loss_coord += coord.item()
+
         # positive 置信度
         loss_positive_conf = self.pos_conf * mseLoss(predict_grid_positive_box[:,4], torch.Tensor([1]).to(device=device)) / batch_size
         loss = loss + loss_positive_conf
-        #positive_conf = self.pos_conf * torch.pow(predict_grid_positive_box[:, 4] - torch.Tensor([1]).to(device=device), 2).sum() / batch_size
-        #loss = loss + positive_conf
-        #loss_positive_conf += positive_conf.item()
+
         # negative 置信度
         predict_negative_boxes = torch.cat([predict_negative_boxes[:,0:5], predict_negative_boxes[:,5:10], predict_grid_negative_box], dim=0)
         loss_negative_conf = self.l_noobj * mseLoss(predict_negative_boxes[:,4], torch.Tensor([0]).to(device=device)) / batch_size
         loss = loss + loss_negative_conf
-        #negative_conf = self.l_noobj * torch.pow(predict_negative_boxes[:,4] - torch.Tensor([0]).to(device=device), 2).sum() / batch_size
-        #loss = loss + negative_conf
-        #loss_negative_conf += negative_conf.item()
+
         #print("loss:{} loss_coord:{} loss_positive_conf:{} loss_negative_conf:{} loss_classes:{} iou_sum.item():{} object_num:{}".format(loss, loss_coord, loss_positive_conf, loss_negative_conf, loss_classes, iou_sum.item(), object_num))
- 
         return loss, loss_coord.item(), loss_positive_conf.item(), loss_negative_conf.item(), loss_class.item(), iou_sum.item(), object_num
