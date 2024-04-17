@@ -107,7 +107,7 @@ class AIPlayer:
         :param color: 下棋方，'X' - 黑棋，'O' - 白棋
         """
         # 最大迭代次数
-        self.max_times = 200
+        self.max_times = 300
         # 玩家颜色
         self.color = color
         # UCB超参数

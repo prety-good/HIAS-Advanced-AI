@@ -106,22 +106,22 @@ class MainWindow(QWidget):
         # 添加显示框
         font = QFont("Arial", 12, QFont.Bold)
         self.total_time_X_label = QLabel(self)
-        self.total_time_X_label.setGeometry(650, 150, 160, 30)
+        self.total_time_X_label.setGeometry(650, 150, 200, 30)
         self.total_time_X_label.setFont(font)
         self.total_time_X_label.setStyleSheet("color: darkred; background-color: lightyellow;")  # 设置前景色和背景色
 
         self.total_time_O_label = QLabel(self)
-        self.total_time_O_label.setGeometry(650, 200, 160, 30)
+        self.total_time_O_label.setGeometry(650, 200, 200, 30)
         self.total_time_O_label.setFont(font)
         self.total_time_O_label.setStyleSheet("color: darkred; background-color: lightyellow;")  # 设置前景色和背景色
 
         self.step_time_X_label = QLabel(self)
-        self.step_time_X_label.setGeometry(650, 250, 160, 30)
+        self.step_time_X_label.setGeometry(650, 250, 200, 30)
         self.step_time_X_label.setFont(font)
         self.step_time_X_label.setStyleSheet("color: darkred; background-color: lightyellow;")  # 设置前景色和背景色
 
         self.step_time_O_label = QLabel(self)
-        self.step_time_O_label.setGeometry(650, 300, 160, 30)
+        self.step_time_O_label.setGeometry(650, 300, 200, 30)
         self.step_time_O_label.setFont(font)
         self.step_time_O_label.setStyleSheet("color: darkred; background-color: lightyellow;")  # 设置前景色和背景色
 
