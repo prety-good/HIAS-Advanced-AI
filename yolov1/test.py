@@ -51,26 +51,25 @@ def resize_image_with_coords(image):
     constant = cv2.resize(constant, (width, height), cv2.INTER_LINEAR)
     return constant
 
-transform_common = transforms.Compose([
-    transforms.ToTensor(),  # height * width * channel -> channel * height * width
-    transforms.Normalize(mean=(0.408, 0.448, 0.471), std=(0.242, 0.239, 0.234))  # 归一化后.不容易产生梯度爆炸的问题
-])
+if __name__=="__main__":
+    transform_common = transforms.Compose([
+        transforms.ToTensor(),  # height * width * channel -> channel * height * width
+        transforms.Normalize(mean=(0.408, 0.448, 0.471), std=(0.242, 0.239, 0.234))  # 归一化后.不容易产生梯度爆炸的问题
+    ])
 
+    model = YOLOv1().to(device)
+    param_dict = torch.load("./weights/YOLOv1_40.pth", map_location=torch.device("cpu"))['model']
+    model.load_state_dict(param_dict)
 
-# param_dict = torch.load("./weights/YOLOv1_40.pth", map_location=torch.device("cpu"))['model']
-# model = YOLOv1().load_state_dict(param_dict).to(device)
-
-model = YOLOv1().to(device)
-
-imagefolder = "./data/VOC2012_test/JPEGImages"
-with torch.no_grad():
-    for path in os.listdir(imagefolder):
-        image = cv2.imread(os.path.join(imagefolder, path))
-        image = resize_image_with_coords(image)
-        image = transform_common(image)
-        image = image.unsqueeze(dim=0).to(device)
-        y_hat = model(image)
-        print(y_hat)
-        break
+    imagefolder = "./data/VOC2012_test/JPEGImages"
+    with torch.no_grad():
+        for path in os.listdir(imagefolder):
+            image = cv2.imread(os.path.join(imagefolder, path))
+            image = resize_image_with_coords(image)
+            image = transform_common(image)
+            image = image.unsqueeze(dim=0).to(device)
+            y_hat = model(image)
+            print(y_hat)
+            break
 
 

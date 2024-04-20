@@ -29,7 +29,7 @@ def resize_image_without_annotation(image, height, width):
     # 给图像增加边界，使得图片长、宽等长，cv2.BORDER_CONSTANT指定边界颜色由value指定
     constant = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=BLACK)
     constant = cv2.resize(constant, (width, height), cv2.INTER_LINEAR)
-    return constant
+    return constant, (top, bottom, left, right)
 
 def resize_image(image, height, width, annotation_xml, class_dict):
     top, bottom, left, right = (0, 0, 0, 0)
@@ -78,6 +78,8 @@ def resize_image(image, height, width, annotation_xml, class_dict):
     return constant, coords
 
 def resize_image_with_coords(image, height, width, temp_coords):
+    # letterBox
+
     top, bottom, left, right = (0, 0, 0, 0)
     # 获取图像尺寸
     h, w, _ = image.shape

@@ -25,10 +25,11 @@ class Convention(nn.Module):
 class backbone(nn.Module):
     def __init__(self) -> None:
         super().__init__()
-        # backbone = torchvision.models.resnet34(pretrained=True)
-        backbone = torchvision.models.resnet18(weights='DEFAULT')
-
-        self.feature_num = backbone.fc.in_features
+        # backbone = torchvision.models.resnet50(weights='DEFAULT')
+        # self.feature_num = backbone.fc.in_features
+        backbone = torchvision.models.efficientnet_b3(weights='DEFAULT')
+        self.feature_num = backbone.classifier[1].in_features
+        # print(list(backbone.children()))
         self.backbone = nn.Sequential(*list(backbone.children())[:-2])
     def forward(self, x):
         return self.backbone(x)
@@ -78,6 +79,7 @@ class YOLOv1(nn.Module):
         
         self.Conv_Back = nn.Sequential(
             Convention(self.backbone.feature_num, 1024, 3, 1, 1, need_bn=False),
+            # Convention(1024, 1024, 3, 1, 1, need_bn=False),
             Convention(1024, 1024, 3, 2, 1, need_bn=False),
             Convention(1024, 1024, 3, 1, 1, need_bn=False),
             Convention(1024, 1024, 3, 1, 1, need_bn=False),
@@ -97,7 +99,6 @@ class YOLOv1(nn.Module):
         # x = self.Conv_Semanteme(x)
 
         x = self.backbone(x)
-        
         x = self.Conv_Back(x)
         # batch_size * channel * height * weight -> batch_size * height * weight * channel
         x = x.permute(0, 2, 3, 1)
@@ -134,8 +135,17 @@ class YOLOv1(nn.Module):
                 self_param_dict[name] = net_param_dict[name]
         self.load_state_dict(self_param_dict)
 if __name__=="__main__":
+    
+    # x = torch.randn((32,3,224,224))
+    # backbone = torchvision.models.resnet34(weights='DEFAULT')
+    # backbone = nn.Sequential(*list(backbone.children())[:-1])
+    # print(backbone(x).shape)
+    # backbone = torchvision.models.efficientnet_v2_m(weights='DEFAULT')
+    # backbone = nn.Sequential(*list(backbone.children())[:-1])
+    # print(backbone(x).shape)
+    
     model = YOLOv1().cuda()
-    x = torch.randn((32,3,448,448)).cuda()
+    x = torch.randn((16,3,448,448)).cuda()
     y = model(x)
     # print(model)
     print(y.shape)

@@ -15,6 +15,7 @@ import warnings
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # os.environ["KMP_DUPLICATE_LIB_OK"] = "True"
+torch.backends.cudnn.benchmark = True
 warnings.filterwarnings("ignore")
  
 if __name__ == "__main__":
@@ -22,22 +23,21 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="YOLOv1 train config")
     parser.add_argument('--B', type=int, help="YOLOv1 predict box num every grid", default=2)
     parser.add_argument('--class_num', type=int, help="YOLOv1 predict class num", default=20)
-    parser.add_argument('--lr', type=float, help="start lr", default=1e-3)
-    parser.add_argument('--batch_size', type=int, help="YOLOv1 train batch size", default=8)
+    parser.add_argument('--lr', type=float, help="start lr", default=5e-3)
+    parser.add_argument('--batch_size', type=int, help="YOLOv1 train batch size", default=12)
     parser.add_argument('--train_imgs', type=str, help="YOLOv1 train train_imgs", default="")
     parser.add_argument('--train_labels', type=str, help="YOLOv1 train train_labels", default="")
-    parser.add_argument('--val_imgs', type=str, help="YOLOv1 train val_imgs", default="./data/VOC2012_test/JPEGImages")
+    parser.add_argument('--val_imgs', type=str, help="YOLOv1 train val_imgs", default="./data/VOC2007_test/JPEGImages")
     parser.add_argument('--val_labels', type=str, help="YOLOv1 train val_labels", default="./data/VOC2012_test/Annotations")
     parser.add_argument('--voc_classes_path', type=str, help="voc classes path", default="./data/class.data")
     parser.add_argument('--momentum', type=float, help="optim momentum", default=0.9)
-    parser.add_argument('--pre_weight_file', type=str, help="YOLOv1 BackBone pre-train path", default="../PreTrain/weights/YOLO_Feature_150.pth")
     parser.add_argument('--epoch_interval', type=int, help="save YOLOv1 weight epoch interval", default=10)
     parser.add_argument('--epoch_unfreeze', type=int, help="YOLOv1 backbone unfreeze epoch", default=0)
-    parser.add_argument('--epoch_num', type=int, help="YOLOv1 train epoch num", default=20)
+    parser.add_argument('--epoch_num', type=int, help="YOLOv1 train epoch num", default=100)
     parser.add_argument('--grad_visualize', type=bool, help="YOLOv1 train grad visualize", default=False)
     parser.add_argument('--feature_map_visualize', type=bool, help="YOLOv1 train feature map visualize", default=False)
     parser.add_argument('--restart', type=bool, default=True)
-    parser.add_argument('--weight_file', type=str, help="YOLOv1 weight path", default="./weights/YOLO_V1_110.pth")
+    parser.add_argument('--weight_file', type=str, help="YOLOv1 weight path", default="./weights/efficientnet/YOLOv1_50.pth")
     args = parser.parse_args()
 
     num_epochs = args.epoch_num
@@ -47,21 +47,23 @@ if __name__ == "__main__":
     momentum = args.momentum
     epoch_interval = args.epoch_interval
     epoch_unfreeze = args.epoch_unfreeze
+    learning_rate = args.lr
     loss_mode = "mse"
  
+
+    YOLO = YOLOv1().to(device=device)
+
     if args.restart == True:
-        # pre_weight_file = args.pre_weight_file
-        # pre_param_dict = torch.load(pre_weight_file, map_location=torch.device("cpu"))
-        lr = args.lr
         param_dict = {}
         epoch = 0
         epoch_val_loss_min = 999999999
  
     else:
         weight_file = args.weight_file
-        param_dict = torch.load(weight_file, map_location=torch.device("cpu"))
+        param_dict = torch.load(weight_file)
         epoch = param_dict['epoch']
         epoch_val_loss_min = param_dict['epoch_val_loss_min']
+        YOLO.load_state_dict(param_dict['model'])
  
     # 2.dataset
     # train_dataSet = VOC_Detection_Set(imgs_path=args.train_imgs,
@@ -71,31 +73,23 @@ if __name__ == "__main__":
     val_dataSet = VOC_Detection_Set(imgs_path=args.val_imgs,
                                     annotations_path=args.val_labels,
                                     classes_file=args.voc_classes_path, class_num=class_num, is_train=False, loss_mode=loss_mode)
- 
-    # 3-4.network + optimizer
-    YOLO = YOLOv1().to(device=device, non_blocking=True)
-    if args.restart == True:
-        # YOLO.initialize_weights(pre_param_dict["min_loss_model"]) #load darknet pretrain weight
-        optimizer = optim.SGD(YOLO.parameters(), lr=lr, momentum=momentum)
-        # optimizer = optim.Adam(YOLO.parameters(), lr = lr)
-        optimal_dict = {}
-    else:
-        YOLO.load_state_dict(param_dict['model']) #load yolov1 train weight
-        optimizer = param_dict['optim']
-        optimal_dict = param_dict['optimal']
+
+    
     if epoch < epoch_unfreeze:
         model.set_freeze_by_idxs(YOLO, [0, 1])
- 
-    # 5.loss
-    loss_function = YOLOv1_Loss().to(device=device, non_blocking=True)
+
+
+    # optimizer = optim.SGD(YOLO.parameters(), lr=learning_rate, momentum=momentum)
+    optimizer = optim.Adam(YOLO.parameters(), lr=learning_rate)
+    loss_function = YOLOv1_Loss().to(device=device)
  
     # 6.train and record
-    writer = SummaryWriter(log_dir='./log', filename_suffix=' [' + str(epoch) + '~' + str(epoch + epoch_interval) + ']')
+    writer = SummaryWriter()
  
-    train_loader = DataLoader(train_dataSet, batch_size=batch_size, shuffle=True, pin_memory=True)
-    val_loader = DataLoader(val_dataSet, batch_size=batch_size, shuffle=True, pin_memory=True)
+    train_loader = DataLoader(train_dataSet, batch_size=batch_size, shuffle=True,num_workers=16)
+    val_loader = DataLoader(val_dataSet, batch_size=batch_size, shuffle=True, num_workers=16)
  
-    for epoch in range(num_epochs):
+    while epoch < num_epochs:
         epoch_train_loss = 0
         epoch_val_loss = 0
         epoch_train_iou = 0
@@ -114,20 +108,17 @@ if __name__ == "__main__":
         train_len = len(train_loader)
         YOLO.train()
         loss = [0, 0, 0, 0, 0, 0, 1]
-        for train_data, label_data in tqdm((train_loader), desc="train: coord_loss:{} pos_conf_loss:{} neg_conf_loss:{} class_loss:{} avg_iou:{}".format(
-                    round(loss[1], 4),
-                    round(loss[2], 4),
-                    round(loss[3], 4),
-                    round(loss[4], 4),
-                    round(loss[5] / loss[6], 4)), total=len(train_loader)):
+        for train_data, label_data in tqdm((train_loader), desc=f"epoch:{epoch}/{num_epochs}", total=len(train_loader)):
             optimizer.zero_grad()
-            train_data = train_data.float().to(device=device, non_blocking=True)
-            label_data[0] = label_data[0].float().to(device=device, non_blocking=True)
-            label_data[1] = label_data[1].to(device=device, non_blocking=True)
-            label_data[2] = label_data[2].to(device=device, non_blocking=True)
+            train_data = train_data.float().to(device=device)
+            label_data[0] = label_data[0].float().to(device=device)
+            label_data[1] = label_data[1].to(device=device)
+            label_data[2] = label_data[2].to(device=device)
 
             loss = loss_function(bounding_boxes=YOLO(train_data), ground_labels=label_data)
             sample_avg_loss = loss[0]
+            sample_avg_loss.backward()
+            optimizer.step()
             epoch_train_loss_coord = epoch_train_loss_coord + loss[1] * batch_size
             epoch_train_loss_pos_conf = epoch_train_loss_pos_conf + loss[2] * batch_size
             epoch_train_loss_neg_conf = epoch_train_loss_neg_conf + loss[3] * batch_size
@@ -135,15 +126,18 @@ if __name__ == "__main__":
             epoch_train_iou = epoch_train_iou + loss[5]
             epoch_train_object_num = epoch_train_object_num + loss[6]
 
-            sample_avg_loss.backward()
-            optimizer.step()
-
             batch_loss = sample_avg_loss.item() * batch_size
             epoch_train_loss = epoch_train_loss + batch_loss
 
             if epoch == epoch_unfreeze + 1:
                 for param_group in optimizer.param_groups:
-                    param_group["lr"] = lr
+                    param_group["lr"] = learning_rate
+            # print("train: coord_loss:{} pos_conf_loss:{} neg_conf_loss:{} class_loss:{} avg_iou:{}".format(
+            #         round(loss[1], 4),
+            #         round(loss[2], 4),
+            #         round(loss[3], 4),
+            #         round(loss[4], 4),
+            #         round(loss[5] / loss[6], 4)))
 
         if args.feature_map_visualize:
             feature_map_visualize(train_data[0][0], writer, YOLO)
@@ -161,16 +155,11 @@ if __name__ == "__main__":
         val_len = len(val_loader)
         YOLO.eval()
         with torch.no_grad():
-            for val_data, label_data in tqdm((val_loader), desc="val: coord_loss:{} pos_conf_loss:{} neg_conf_loss:{} class_loss:{} iou:{}".format(
-                round(loss[1], 4),
-                round(loss[2], 4),
-                round(loss[3], 4),
-                round(loss[4], 4),
-                round(loss[5] / loss[6], 4)), total=len(val_loader)):
-                    val_data = val_data.float().to(device=device, non_blocking=True)
-                    label_data[0] = label_data[0].float().to(device=device, non_blocking=True)
-                    label_data[1] = label_data[1].to(device=device, non_blocking=True)
-                    label_data[2] = label_data[2].to(device=device, non_blocking=True)
+            for val_data, label_data in tqdm((val_loader), desc=f"epoch:{epoch}/{num_epochs}",total=len(val_loader)):
+                    val_data = val_data.float().to(device=device)
+                    label_data[0] = label_data[0].float().to(device=device)
+                    label_data[1] = label_data[1].to(device=device)
+                    label_data[2] = label_data[2].to(device=device)
                     loss = loss_function(bounding_boxes=YOLO(val_data), ground_labels=label_data)
                     sample_avg_loss = loss[0]
                     epoch_val_loss_coord = epoch_val_loss_coord + loss[1] * batch_size
@@ -200,17 +189,12 @@ if __name__ == "__main__":
  
         if epoch_val_loss < epoch_val_loss_min:
             epoch_val_loss_min = epoch_val_loss
-            optimal_dict = YOLO.state_dict()
  
-        if epoch % epoch_interval == 0:
+        if  epoch % epoch_interval == 0:
             param_dict['model'] = YOLO.state_dict()
-            param_dict['optimizer'] = optimizer
             param_dict['epoch'] = epoch
-            param_dict['optimal'] = optimal_dict
             param_dict['epoch_val_loss_min'] = epoch_val_loss_min
             torch.save(param_dict, './weights/YOLOv1_' + str(epoch) + '.pth')
-            writer.close()
-            writer = SummaryWriter(log_dir='./log', filename_suffix='[' + str(epoch) + '~' + str(epoch + epoch_interval) + ']')
 
         if args.grad_visualize:
             for i, (name, layer) in enumerate(YOLO.named_parameters()):
@@ -230,5 +214,7 @@ if __name__ == "__main__":
         writer.add_scalar('Val/Loss_neg_conf', epoch_val_loss_neg_conf, epoch)
         writer.add_scalar('Val/Loss_classes', epoch_val_loss_classes, epoch)
         writer.add_scalar('Val/Epoch_iou', epoch_val_iou / epoch_val_object_num, epoch)
- 
+
+        epoch += 1
+
     writer.close()

@@ -3,6 +3,7 @@ import os
 import cv2
 import xml.etree.ElementTree as ET
 import numpy as np
+from tqdm import tqdm
 import random
 import torch
 import utils.image as image
@@ -13,15 +14,25 @@ from torchvision import transforms
 class VOC_Detection_Set(Dataset):
     def __init__(self, imgs_path="", annotations_path="",
                  classes_file="./data/class.data", is_train = True, class_num=20,
-                 label_smooth_value=0.05, input_size=448, grid_size=64, loss_mode="mse"):  # input_size:输入图像的尺度
+                 input_size=448, grid_size=64, loss_mode="mse"):  # input_size:输入图像的尺度
         super().__init__()
         self.imgs_path=[]
         if is_train:
-            for path in ["./data/VOC2007_train_val/JPEGImages", "./data/VOC2007_test/JPEGImages", "./data/VOC2012_train_val/JPEGImages"]:
-                files_list = [os.path.join(path, filename) for filename in os.listdir(path)]
-                self.imgs_path.extend(files_list)
+            # JPEGImages
+            for path in ["./data/VOC2007_train_val/", "./data/VOC2012_train_val/", "./data/VOC2007_test"]:
+                if path == "./data/VOC2007_test":
+                    txtpath = os.path.join(path, "ImageSets/Main/test.txt" )
+                else:
+                    txtpath = os.path.join(path, "ImageSets/Main/trainval.txt" )
+                with open(txtpath, 'r') as file:
+                    for line in file:
+                    # 使用strip()移除每行末尾的换行符'\n'
+                        image = os.path.join(path, "JPEGImages", f"{line.strip()}.jpg")
+                        self.imgs_path.append(image)
         else:
             self.imgs_path = [os.path.join(imgs_path, filename) for filename in os.listdir(imgs_path)]
+        # self.imgs_path = random.sample(self.imgs_path, len(self.imgs_path) // 20)
+            
         self.class_num = class_num
         self.input_size = input_size
         self.grid_size = grid_size
@@ -55,8 +66,6 @@ class VOC_Detection_Set(Dataset):
         for object_xml in objects_xml:
             bnd_xml = object_xml.find("bndbox")
             class_name = object_xml.find("name").text
-            if class_name not in self.class_dict:  # 不属于我们规定的类
-                continue
             xmin = round((float)(bnd_xml.find("xmin").text))
             ymin = round((float)(bnd_xml.find("ymin").text))
             xmax = round((float)(bnd_xml.find("xmax").text))
@@ -111,18 +120,13 @@ class VOC_Detection_Set(Dataset):
             ground_truth = np.zeros([feature_size, feature_size, 10 + 1])
  
         for coord in coords:
- 
             xmin, ymin, xmax, ymax, class_id = coord
- 
             ground_width = (xmax - xmin)
             ground_height = (ymax - ymin)
- 
             center_x = (xmin + xmax) / 2
             center_y = (ymin + ymax) / 2
- 
             index_row = (int)(center_y * feature_size)
             index_col = (int)(center_x * feature_size)
- 
             # 分类标签 label_smooth
             if self.loss_mode == "mse":
                 # 转化为one_hot编码 对one_hot编码做平滑处理
@@ -155,8 +159,8 @@ class VOC_Detection_Set(Dataset):
 
 if __name__=="__main__":
     dataset = VOC_Detection_Set()
-    dataloader = DataLoader(dataset, batch_size=1, shuffle=True)
+    dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
     print(f"dataset长度“{len(dataset)}, dataloader长度：{len(dataloader)} ")
-    for x,y in dataloader:
-        print(x , y)
+    for x,y in tqdm(dataloader, total = len(dataloader)):
         break
+        pass
