@@ -64,7 +64,7 @@ if __name__=="__main__":
     remaining_parameters = []
     for child in list(model.backbone.children())[:-1]: 
         remaining_parameters.extend(list(child.parameters()))
-        child.requires_grad_ = False
+        # child.requires_grad_ = False
     optimizer = torch.optim.Adam([
             {'params': fc_parameters, 'lr': learning_rate },
             {'params': remaining_parameters, 'lr': learning_rate* 0.1}])

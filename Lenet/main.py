@@ -9,8 +9,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 tb_writer = SummaryWriter()
 batch_size = 128
-num_epochs = 5
-learning_rate = 1e-3
+num_epochs = 20
+learning_rate = 0.001
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 if __name__=="__main__":
@@ -23,6 +23,7 @@ if __name__=="__main__":
     model = lenet().to(device)
 
     optim = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    # optim = torch.optim.SGD(model.parameters(), lr=learning_rate)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optim, T_max=num_epochs)
     loss_fn = nn.CrossEntropyLoss()
 
@@ -30,7 +31,7 @@ if __name__=="__main__":
         model.train()
         train_loss = 0.0
         correct = 0
-        for X, y in tqdm((train_dataloder), desc=f"Epoch: [{epoch}/{num_epochs}]", total=len(train_dataloder)):
+        for X, y in tqdm((train_dataloder), desc=f"Train Epoch: [{epoch}/{num_epochs}]", total=len(train_dataloder)):
             X = X.to(device, dtype = torch.float32)
             y = y.to(device)
             y_hat = model(X)
@@ -50,7 +51,7 @@ if __name__=="__main__":
         test_loss = 0.0
         correct = 0
         with torch.no_grad():
-            for X, y in tqdm((test_dataloder), desc=f"Epoch: [{epoch}/{num_epochs}]", total=len(test_dataloder)):
+            for X, y in tqdm((test_dataloder), desc=f"Val Epoch: [{epoch}/{num_epochs}]", total=len(test_dataloder)):
                 X = X.to(device, dtype = torch.float32)
                 y = y.to(device)
                 y_hat = model(X)

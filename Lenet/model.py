@@ -1,6 +1,7 @@
 import torch
 import torchvision
 from torch import nn
+from torch.nn import init
 
 class lenet(nn.Module):
     def __init__(self):
@@ -12,7 +13,13 @@ class lenet(nn.Module):
         self.fc2 = nn.Linear(120, 84)
         self.fc3 = nn.Linear(84, 10)
         self.flatten = nn.Flatten()
-        self.activate = nn.Sigmoid()
+        # self.activate = nn.Sigmoid()
+        self.activate = nn.ReLU()
+        init.kaiming_normal_(self.conv1.weight)
+        init.kaiming_normal_(self.conv2.weight)
+        init.xavier_normal_(self.fc1.weight)
+        init.xavier_normal_(self.fc2.weight)
+        init.xavier_normal_(self.fc3.weight)
     def forward(self, X):
         X = self.activate(self.conv1(X))
         X = self.pool(X)
