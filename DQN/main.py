@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
  
 class ReplayBuffer():
     def __init__(self, capacity):
-        # 创建一个先进先出的队列，最大长度为capacity，保证经验池的样本量不变
         self.buffer = collections.deque(maxlen=capacity)
     # 将数据以元组形式添加进经验池
     def add(self, state, action, reward, next_state, done):
@@ -27,29 +26,23 @@ class ReplayBuffer():
     # 目前队列长度
     def size(self):
         return len(self.buffer)
-    
-# -------------------------------------- #
-# 构造深度学习网络，输入状态s，得到各个动作的reward
-# -------------------------------------- #
- 
+     
 class Net(nn.Module):
-    # 构造只有一个隐含层的网络
     def __init__(self, n_states, n_hidden, n_actions):
         super(Net, self).__init__()
         # [b,n_states]-->[b,n_hidden]
         self.fc1 = nn.Linear(n_states, n_hidden)
         # [b,n_hidden]-->[b,n_actions]
-        self.fc2 = nn.Linear(n_hidden, n_actions)
-    # 前传
+        self.fc2 = nn.Linear(n_hidden, n_hidden)
+
+        self.fc3 = nn.Linear(n_hidden, n_actions)
     def forward(self, x):  # [b,n_states]
         x = self.fc1(x)
-        x =  F.relu(x)
+        x = F.relu(x)
         x = self.fc2(x)
+        x = F.relu(x)
+        x = self.fc3(x)
         return x
- 
-# -------------------------------------- #
-# 构造深度强化学习模型
-# -------------------------------------- #
  
 class DQN:
     #（1）初始化
@@ -64,17 +57,15 @@ class DQN:
         self.gamma = gamma  # 折扣因子，对下一状态的回报的缩放
         self.epsilon = epsilon  # 贪婪策略，有1-epsilon的概率探索
         self.target_update = target_update  # 目标网络的参数的更新频率
-        self.device = device  # 在GPU计算
+        self.device = device
         # 计数器，记录迭代次数
         self.count = 0
  
-        # 构建2个神经网络，相同的结构，不同的参数
-        # 实例化训练网络  [b,4]-->[b,2]  输出动作对应的奖励
+        # q_net  [b,4]-->[b,2]  输出动作对应的奖励
         self.q_net = Net(self.n_states, self.n_hidden, self.n_actions)
-        # 实例化目标网络
+
         self.target_q_net = Net(self.n_states, self.n_hidden, self.n_actions)
- 
-        # 优化器，更新训练网络的参数
+
         self.optimizer = torch.optim.Adam(self.q_net.parameters(), lr=self.learning_rate)
  
     #（3）网络训练
@@ -113,6 +104,8 @@ class DQN:
             self.target_q_net.load_state_dict(self.q_net.state_dict())
 
         self.count += 1
+    def save(self):
+        torch.save(self.q_net.state_dict(), './q_net.pt')
 
 
     def take_action(self, state):
@@ -139,13 +132,13 @@ if __name__ == "__main__":
     gamma = 0.9  # 折扣因子
     epsilon = 0.9  # 贪心系数
     target_update = 200  # 目标网络的参数的更新频率
-    batch_size = 32
-    n_hidden = 64  # 隐含层神经元个数
+    batch_size = 128
+    n_hidden = 128  # 隐含层神经元个数
     min_size = 200  # 经验池超过200后再训练
     return_list = []  # 记录每个回合的回报
     
     # 加载环境
-    env = gym.make("CartPole-v1", render_mode="human")
+    env = gym.make("CartPole-v0")
     n_states = env.observation_space.shape[0]  # 4
     n_actions = env.action_space.n  # 2
     
@@ -163,7 +156,9 @@ if __name__ == "__main__":
             )
     
     # 训练模型
-    for i in tqdm(range(500), total = 500):  # 100回合
+    # for i in tqdm(range(500), total = 500):  # 100回合
+    bar = tqdm(range(500), total = 500)
+    for i in bar:
         # 每个回合开始前重置环境
         state = env.reset()[0]  # len=4
         # 记录每个回合的回报
@@ -174,7 +169,9 @@ if __name__ == "__main__":
             # 获取当前状态下需要采取的动作
             action = agent.take_action(state)
             # 更新环境
-            next_state, reward, done, _, _ = env.step(action)
+            next_state, reward, done, truncated, _ = env.step(action)
+            # if truncated:
+            #     done = True
             # 添加经验池
             replay_buffer.add(state, action, reward, next_state, done)
             # 更新当前状态
@@ -198,17 +195,17 @@ if __name__ == "__main__":
                 agent.update(transition_dict)
             # 结束
             if done: break
-        
+        bar.set_description(f'reward: {episode_return}')
         # 记录每个回合的回报
         return_list.append(episode_return)
-    
+    agent.save()
     # 绘图
     episodes_list = list(range(len(return_list)))
     plt.plot(episodes_list, return_list)
     plt.xlabel('Episodes')
     plt.ylabel('Returns')
     plt.title('DQN Returns')
-    plt.savefig('./results.png')
+    plt.savefig(f'./results.png')
     plt.show()
 
                          
